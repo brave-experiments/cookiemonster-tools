@@ -4,6 +4,8 @@
 
 ### Init
 
+#### Dependencies
+
 Initialize the Python virtual environment and install the requirements. For example:
 
 ```bash
@@ -12,11 +14,13 @@ source env/bin/activate
 pip3 install -r requirements.txt
 ```
 
-You will also need a list of domains to crawl. It presumes a list of Tranco domains, though other lists might work.
+#### List of domains to crawl
 
-You can obtain the latest Tranco list with subdomains here: https://tranco-list.eu/top-1m-incl-subdomains.csv.zip
+You will need a list of domains to crawl. It presumes a list of Tranco domains, though other lists might work.
 
-Alternatively, run the `get_latest_tranco.sh` script (curls and unzips that file).
+Run the `get_latest_tranco.sh` script (curls and unzips the latest top 1M Tranco list of domains with subdomains).
+
+Alternatively, you can obtain by hand the latest Tranco list with subdomains here: https://tranco-list.eu/top-1m-incl-subdomains.csv.zip
 
 ### Using 
 You need to pass as input a CSV file of domains. You also need to pass an output file. If the supplied output file already exists, it will be appended to, not overwritten. Also, you can pass in a `--skip` parameter to skip the first N rows. All this helps restart crawls. 
