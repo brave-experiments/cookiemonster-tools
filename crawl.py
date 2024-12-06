@@ -5,6 +5,7 @@ import csv
 import argparse
 import signal
 import sys
+import os
 
 parser = argparse.ArgumentParser(description='Make requests to Cookiemonster API')
 parser.add_argument('-i', '--input-file', dest='input', required=True, help='Path to the input file')
@@ -76,6 +77,7 @@ def read_csv_make_requests(skip):
         print("You have to be on the internal company VPN!")
         return
     with open(args.input, newline='') as csvfile:
+        print("Reading input file and doing crawl...")
         reader = csv.reader(csvfile)
         # Skip rows
         for _ in range(skip):
@@ -104,6 +106,10 @@ def log_result(url, location):
 
 if __name__ == "__main__":
     output_file = open(args.output, 'a')  # Open output file in append mode
+    # Check if the input file exists
+    if not os.path.isfile(args.input):
+        print(f"Error: Input file '{args.input}' does not exist.", file=sys.stderr)
+        sys.exit(1)
     try:
         read_csv_make_requests(args.skip)
     finally:
