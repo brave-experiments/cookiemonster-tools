@@ -12,7 +12,6 @@ parser.add_argument('-i', '--input-file', dest='input', required=True, help='Pat
 parser.add_argument('-o', '--output-file', dest='output', required=True, help='Path to the output file')
 parser.add_argument('-s', '--skip', dest='skip', type=int, default=0, help='Rows to skip from input CSV file (default: 0)')
 parser.add_argument('-c', '--skip-vpn-check', dest='skip_vpn', default=False, help='Skip check for company VPN before starting crawl (default: False)')
-
 args = parser.parse_args()
 
 BASE_URL = "https://cookiemonster.brave.com"
@@ -69,7 +68,7 @@ def post_request(url, location):
         return url, None, False, f"Request error: {str(e)}"
 
 # Read input CSV with list of domains
-# Read line by line, skipping rows if necessary to restart crawl
+# Read line by line, skipping rows if necessary
 # Calls from both current (SF) and EU (Belgium) locations
 def read_csv_make_requests(skip):
     # Check if on VPN, required for Cookiemonster
@@ -84,32 +83,27 @@ def read_csv_make_requests(skip):
             next(reader, None)
         for row in reader:
             rank, sitename = row
+            # We make a URL by appending the scheme to the domain
             url = f"https://{sitename}"
+            # Crawl from both current (no proxy) and EU (Belgium) locations
+            crawl_url(url, "")
+            crawl_url(url, "bg.stealthtunnel.net")
 
-            # Current location
-            location = ""
-            log_result(url, location)
-
-            # For EU (Belgium)
-            location = "bg.stealthtunnel.net"
-            log_result(url, location)
-
-# Write to both stdout and file
-def log_result(url, location):
+# Write to both stdout and output file
+def crawl_url(url, location):
     url, status_code, identified, error = post_request(url, location)
     region = "San Francisco" if location == "" else "Europe"
     log_entry = f"URL: {url}, Identified: {identified}, Status: {status_code}, Location: {region}, Error: {error}\n"
-
     print(log_entry, end='', flush=True)  # Print to console
     output_file.write(log_entry)  # Write to output file
 
-
 if __name__ == "__main__":
-    output_file = open(args.output, 'a')  # Open output file in append mode
     # Check if the input file exists
     if not os.path.isfile(args.input):
         print(f"Error: Input file '{args.input}' does not exist.", file=sys.stderr)
         sys.exit(1)
+    # Open output file in append mode
+    output_file = open(args.output, 'a')
     try:
         read_csv_make_requests(args.skip)
     finally:
