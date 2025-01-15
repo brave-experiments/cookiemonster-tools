@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 
+import json
+from json.decoder import JSONDecodeError
 import requests
 import csv
 import argparse
 import signal
 import sys
+import traceback
 import os
 
 parser = argparse.ArgumentParser(description='Make requests to Cookiemonster API')
@@ -57,15 +60,11 @@ def post_request(url, location):
 
     try:
         response = requests.post(endpoint, json=payload, headers=headers, timeout=120)
-        status_code = response.status_code
-        response_json = response.json()
-        identified = response_json.get("identified", False)
-        error = response_json.get("error")
-        return url, status_code, identified, error
+        return response.status_code, response.text
     except requests.Timeout:
-        return url, None, False, "Request timed out"
+        return None, "Request error: timeout"
     except requests.RequestException as e:
-        return url, None, False, f"Request error: {str(e)}"
+        return None, f"Request error: {str(e)}"
 
 # Read input CSV with list of domains
 # Read line by line, skipping rows if necessary
@@ -91,11 +90,24 @@ def read_csv_make_requests(skip):
 
 # Write to both stdout and output file
 def crawl_url(url, location):
-    url, status_code, identified, error = post_request(url, location)
-    region = "San Francisco" if location == "" else "Europe"
-    log_entry = f"URL: {url}, Identified: {identified}, Status: {status_code}, Location: {region}, Error: {error}\n"
-    print(log_entry, end='', flush=True)  # Print to console
+    status_code, response_body = post_request(url, location)
+    if status_code is None:
+        print(f"failed for {url} ({location}): {response_body}")
+    else:
+        try:
+            response_json = json.loads(response_body)
+            error = response_json.get("error")
+            identified = response_json.get("identified", False)
+        except JSONDecodeError as e:
+            error = e
+        finally:
+            if error is not None:
+                print(f"failed for {url} ({location}): {error}")
+            elif identified:
+                print(f"identified for {url} ({location})!")
+    log_entry = json.dumps([status_code, location, response_body])
     output_file.write(log_entry)  # Write to output file
+    output_file.write('\n')
 
 if __name__ == "__main__":
     # Check if the input file exists
@@ -106,6 +118,12 @@ if __name__ == "__main__":
     output_file = open(args.output, 'a')
     try:
         read_csv_make_requests(args.skip)
+    except Exception as e:
+        print(e)
+        tb = traceback.format_exc()
+    else:
+        tb = "No error"
     finally:
+        print(tb)
         cleanup()  # Ensure cleanup is always called
 
