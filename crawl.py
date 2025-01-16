@@ -22,9 +22,9 @@ executor = None
 parser = argparse.ArgumentParser(description='Make requests to Cookiemonster API')
 parser.add_argument('-i', '--input-file', dest='input', required=True, help='Path to the input file')
 parser.add_argument('-o', '--output-file', dest='output', required=True, help='Path to the output file')
-parser.add_argument('-s', '--skip-lines', dest='skip_lines', type=int, default=0, help='Rows to skip from input CSV file (default: 0)')
-parser.add_argument('-v', '--skip-vpn-check', action='store_true', dest='skip_vpn', help='Skip VPN check (default: required)')
-parser.add_argument('-p', '--parallel', dest='parallel', action='store_true', help='Enable parallel crawling (default: sequential)')
+parser.add_argument('-s', '--skip-lines', dest='skip_lines', type=int, default=0, help='Rows to skip from input CSV file')
+parser.add_argument('-v', '--skip-vpn-check', action='store_true', dest='skip_vpn', help='Skip VPN check')
+parser.add_argument('-p', '--parallel', dest='parallel', action='store_true', help='Enable parallel crawling')
 args = parser.parse_args()
 
 BASE_URL = "https://cookiemonster.brave.com"
