@@ -65,7 +65,7 @@ def check_auth():
         response = requests.get(BASE_URL, headers={'API-Key': API_KEY}, timeout=10)
         return response.status_code != 403
     except requests.RequestException as e:
-        print(f"VPN check failed: {e}")
+        print(f"Auth/VPN check failed: {e}")
         return False
 
 # Retry HTTP requests to the Cookiemonster API
@@ -158,7 +158,7 @@ if __name__ == "__main__":
         output_file = open(args.output, 'a')
         with open(args.input, newline='') as csvfile:
             reader = csv.reader(csvfile)
-            if not args.skip_vpn and not check_vpn():
+            if not args.skip_auth and not check_auth():
                 print("You must be connected to the VPN. Use -v to skip this check.")
                 sys.exit(1)
             # Skip rows
