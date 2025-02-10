@@ -1,5 +1,6 @@
 env/
 *.txt
+!requirements.txt
 *.csv
 *.swp
 *.zip

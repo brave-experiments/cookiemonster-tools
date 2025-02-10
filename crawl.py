@@ -23,11 +23,13 @@ parser = argparse.ArgumentParser(description='Make requests to Cookiemonster API
 parser.add_argument('-i', '--input-file', dest='input', required=True, help='Path to the input file')
 parser.add_argument('-o', '--output-file', dest='output', required=True, help='Path to the output file')
 parser.add_argument('-s', '--skip-lines', dest='skip_lines', type=int, default=0, help='Rows to skip from input CSV file')
-parser.add_argument('-v', '--skip-vpn-check', action='store_true', dest='skip_vpn', help='Skip VPN check')
+parser.add_argument('-v', '--skip-vpn-check', '--skip-auth-check', action='store_true', dest='skip_auth', help='Skip auth check')
 parser.add_argument('-p', '--parallel', dest='parallel', action='store_true', help='Enable parallel crawling')
 args = parser.parse_args()
 
 BASE_URL = "https://cookiemonster.brave.com"
+
+API_KEY = os.getenv('API_KEY')
 
 # For debugging, we want sequential thread IDs
 # Thread-local storage for custom thread IDs
@@ -58,12 +60,12 @@ def cleanup(signum=None, frame=None):
 signal.signal(signal.SIGINT, cleanup)
 signal.signal(signal.SIGTERM, cleanup)
 
-def check_vpn():
+def check_auth():
     try:
-        response = requests.get(BASE_URL)
+        response = requests.get(BASE_URL, headers={'API-Key': API_KEY}, timeout=10)
         return response.status_code != 403
     except requests.RequestException as e:
-        print(f"VPN check failed: {e}")
+        print(f"Auth/VPN check failed: {e}")
         return False
 
 # Retry HTTP requests to the Cookiemonster API
@@ -83,6 +85,8 @@ def post_request_with_retry(url, location):
         "screenshot": False
     }
     headers = {'Content-Type': 'application/json'}
+    if API_KEY:
+        headers['API-Key'] = API_KEY
     response = requests.post(endpoint, json=payload, headers=headers, timeout=120)
     return response.status_code, response.text
 
@@ -154,7 +158,7 @@ if __name__ == "__main__":
         output_file = open(args.output, 'a')
         with open(args.input, newline='') as csvfile:
             reader = csv.reader(csvfile)
-            if not args.skip_vpn and not check_vpn():
+            if not args.skip_auth and not check_auth():
                 print("You must be connected to the VPN. Use -v to skip this check.")
                 sys.exit(1)
             # Skip rows
