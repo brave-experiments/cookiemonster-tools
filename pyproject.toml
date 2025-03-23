@@ -1,0 +1,11 @@
+[project]
+name = "cookiemonster-tools"
+version = "0.1.0"
+description = "Cookiemonster tools"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "pygithub~=2.6.0",
+    "requests~=2.32",
+    "tenacity~=9.0.0",
+]
