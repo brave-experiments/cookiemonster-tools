@@ -101,7 +101,7 @@ def parse_jsonl(file_path: str) -> Dict[str, List[Dict[str, Any]]]:
                         print(f"Warning: Skipping malformed entry: {line[:100]}...")
                         continue
 
-                    status_code, location, json_data_str = entry
+                    status_code, _, json_data_str = entry
 
                     if status_code != 200:
                         # Ignore failed API requests
@@ -113,9 +113,6 @@ def parse_jsonl(file_path: str) -> Dict[str, List[Dict[str, Any]]]:
                     if "originalUrl" not in json_data:
                         print(f"Warning: Entry missing originalUrl: {line[:100]}...")
                         continue
-
-                    # Add location to the JSON data
-                    json_data["location"] = location
 
                     # Group by originalUrl
                     website_data[json_data["originalUrl"]].append(json_data)
