@@ -29,6 +29,14 @@ GITHUB_TOKEN_ENV = "GITHUB_TOKEN"
 # Issue title prefix to identify issues created by this script
 ISSUE_PREFIX = "[Website Detection] "
 
+# Continent mapping
+CONTINENT_MAP = {
+    "Americas": "AMER",
+    "Asia Pacific": "APAC",
+    "Europe": "EU",
+    "Middle East and Africa": "MEA",
+}
+
 
 def parse_args() -> argparse.Namespace:
     """Parse command-line arguments."""
@@ -185,6 +193,32 @@ def has_detection(website_data: List[Dict[str, Any]]) -> Tuple[bool, bool]:
     return has_detection, is_scroll_blocked
 
 
+def get_location_label(location: str) -> str:
+    """Get the location label from a location string."""
+    if not location:
+        return "Location: direct"
+
+    # Split by / and take first part
+    continent = location.split("/")[0].strip()
+    if continent in CONTINENT_MAP:
+        return f"Location: {CONTINENT_MAP[continent]}"
+    return "Location: direct"
+
+
+def get_all_locations(website_data: List[Dict[str, Any]]) -> List[str]:
+    """Get all unique locations from website data where a detection occurred."""
+    locations = set()
+
+    for data in website_data:
+        # Only consider locations with a detection
+        if data.get("identified", False) or data.get("scrollBlocked", False):
+            location = data.get("location", "")
+            if location:
+                locations.add(location)
+
+    return sorted(list(locations))
+
+
 def manage_issues(
     repo: Repository,
     existing_issues: Dict[str, Issue],
@@ -196,68 +230,107 @@ def manage_issues(
     closed = 0
     reopened = 0
 
+    # Progress tracking
+    total_websites = len(website_data)
+    processed = 0
+    last_percentage = 0
+
+    print(f"Processing {total_websites} websites...")
+
     for url, data_list in website_data.items():
         issue_title = f"{ISSUE_PREFIX}{url}"
         detection_found, is_scroll_blocked = has_detection(data_list)
         existing_issue = existing_issues.get(url)
 
-        if existing_issue:
-            # Get current labels excluding our managed labels
-            current_labels = [
-                label.name
-                for label in existing_issue.labels
-                if label.name not in ["scrollblocking", "cookie notice"]
-            ]
+        # Only process if we have a detection or scroll blocking
+        if detection_found or is_scroll_blocked:
+            # Get location labels for this website
+            locations = get_all_locations(data_list)
+            location_labels = []
+            if locations:
+                # Add individual location labels
+                for location in locations:
+                    location_labels.append(get_location_label(location))
+                # If we have all continents, add "Location: all"
+                if len(set(loc.split("/")[0].strip() for loc in locations)) == len(
+                    CONTINENT_MAP
+                ):
+                    location_labels.append("Location: all")
 
-            # Add managed labels if needed
-            if is_scroll_blocked:
-                current_labels.append("scrollblocking")
-            if detection_found:
-                current_labels.append("cookie notice")
+            # Check if we have any direct detections (location is empty)
+            has_direct_detection = any(
+                (data.get("identified", False) or data.get("scrollBlocked", False))
+                and not data.get("location", "")
+                for data in data_list
+            )
 
-            # Reopen issue if it's closed and has a detection or scroll blocking
-            if existing_issue.state == "closed" and (
-                detection_found or is_scroll_blocked
-            ):
-                # Reopen issue
-                existing_issue.edit(
-                    state="open",
-                    body=create_issue_body(data_list),
-                    labels=current_labels,
-                )
-                print(f"Reopened issue for {url}")
-                reopened += 1
+            # Add direct location label if needed
+            if has_direct_detection:
+                location_labels.append("Location: direct")
 
-            # Update open issue if it has a detection or scroll blocking
-            elif existing_issue.state == "open" and (
-                detection_found or is_scroll_blocked
-            ):
-                # Update open issue
-                existing_issue.edit(
-                    body=create_issue_body(data_list), labels=current_labels
-                )
-                print(f"Updated issue for {url}")
-                updated += 1
+            if existing_issue:
+                # Get current labels excluding managed labels
+                current_labels = [
+                    label.name
+                    for label in existing_issue.labels
+                    if not (
+                        label.name.startswith("Location:")
+                        or label.name in ["scrollblocking", "cookie notice"]
+                    )
+                ]
 
-            elif existing_issue.state == "open" and not (
-                detection_found or is_scroll_blocked
-            ):
-                # Close issue
-                existing_issue.edit(state="closed")
-                print(f"Closed issue for {url}")
-                closed += 1
+                # Add managed labels based on detection status
+                if is_scroll_blocked:
+                    current_labels.append("scrollblocking")
+                if detection_found:
+                    current_labels.append("cookie notice")
 
-        elif detection_found:
-            # Create new issue
-            issue_body = create_issue_body(data_list)
-            labels = []
-            if is_scroll_blocked:
-                labels.append("scrollblocking")
-            if detection_found:
-                labels.append("cookie notice")
-            repo.create_issue(title=issue_title, body=issue_body, labels=labels)
-            print(f"Created issue for {url}")
-            created += 1
+                # Add location labels
+                current_labels.extend(location_labels)
+
+                # Reopen issue if it's closed
+                if existing_issue.state == "closed":
+                    existing_issue.edit(
+                        state="open",
+                        body=create_issue_body(data_list),
+                        labels=current_labels,
+                    )
+                    print(f"Reopened issue for {url}")
+                    reopened += 1
+                else:
+                    # Update open issue
+                    existing_issue.edit(
+                        body=create_issue_body(data_list), labels=current_labels
+                    )
+                    print(f"Updated issue for {url}")
+                    updated += 1
+            else:
+                # Create new issue
+                issue_body = create_issue_body(data_list)
+                labels = []
+                if is_scroll_blocked:
+                    labels.append("scrollblocking")
+                if detection_found:
+                    labels.append("cookie notice")
+
+                # Add location labels
+                labels.extend(location_labels)
+
+                repo.create_issue(title=issue_title, body=issue_body, labels=labels)
+                print(f"Created issue for {url}")
+                created += 1
+        elif existing_issue and existing_issue.state == "open":
+            # Close issue if there's no detection and it's open
+            existing_issue.edit(state="closed")
+            print(f"Closed issue for {url}")
+            closed += 1
+
+        # Update progress
+        processed += 1
+        percentage = int((processed / total_websites) * 100)
+        if percentage % 5 == 0 and percentage > last_percentage:
+            print(f"Progress: {percentage}% ({processed}/{total_websites})")
+            last_percentage = percentage
 
     print(f"\nSummary:")
     print(f"- Created: {created} issues")
