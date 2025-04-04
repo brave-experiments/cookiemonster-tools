@@ -13,10 +13,20 @@ import os
 from concurrent.futures import ThreadPoolExecutor
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 import threading
+from urllib.parse import urlparse
 
 # Initialize global resources
 output_file = None
 executor = None
+
+# List of hosts to check for ignoring in the logs.
+IGNORED_HOSTS = {
+    "galleryxh.life",
+    "www.betway.co.za",
+    "as.com",
+    "betway.co.zm",
+    "betway.co.mz"
+}
 
 # Argument parsing
 parser = argparse.ArgumentParser(description='Make requests to Cookiemonster API')
@@ -114,7 +124,16 @@ def check_url(output_file, url, location, lock=None):
             else:
                 print_message = f"processed {url} ({location}) without identification [Thread: {thread_id}]"
 
-    log_entry = json.dumps([status_code, location, response_body])
+    # Check if the URL should be ignored in the output.
+    hostname = urlparse(url).netloc
+    is_ignored = hostname in IGNORED_HOSTS
+    
+    log_data = [status_code, location, response_body]
+    if is_ignored:
+        log_data.append("ignored")
+
+    log_entry = json.dumps(log_data)
+
     if lock:
         with lock:
             print(print_message)
