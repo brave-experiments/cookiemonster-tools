@@ -23,6 +23,7 @@ executor = None
 IGNORED_HOSTS = {
     "galleryxh.life",
     "www.betway.co.za",
+    "as.com",
     "betway.co.zm",
     "betway.co.mz"
 }
