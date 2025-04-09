@@ -29,6 +29,9 @@ GITHUB_TOKEN_ENV = "GITHUB_TOKEN"
 # Issue title prefix to identify issues created by this script
 ISSUE_PREFIX = "[Website Detection] "
 
+# Default Location Label
+DEFAULT_LOCATION_LABEL = "US (no proxy)"
+
 # Continent mapping
 CONTINENT_MAP = {
     "Americas": "AMER",
@@ -155,10 +158,15 @@ def create_issue_body(website_data: List[Dict[str, Any]]) -> str:
     body += f"- Identified: {latest.get('identified', False)}\n"
     body += f"- Scroll Blocked: {latest.get('scrollBlocked', False)}\n"
 
-    if "scriptSources" in latest and latest["scriptSources"]:
-        body += "- Script Sources:\n"
-        for source in latest["scriptSources"]:
-            body += f"  - {source}\n"
+    # if "scriptSources" in latest and latest["scriptSources"]:
+    #    body += "- Script Sources:\n"
+    #    for source in latest["scriptSources"]:
+    #        body += f"  - {source}\n"
+
+    if "hideableIds" in latest and latest["hideableIds"]:
+        body += "- Hideable IDs:\n"
+        for id in latest["hideableIds"]:
+            body += f"  - `{id}`\n"
 
     if "classifiersUsed" in latest and latest["classifiersUsed"]:
         body += f"- Classifiers Used: {', '.join(latest['classifiersUsed'])}\n"
@@ -173,9 +181,9 @@ def create_issue_body(website_data: List[Dict[str, Any]]) -> str:
                 break
 
             location = data.get("location", "")
-            location_info = f" via {location}" if location else " (direct)"
+            location_info = location or DEFAULT_LOCATION_LABEL
 
-            body += f"\n**Detection {i + 1}**{location_info} - {datetime.fromtimestamp(data.get('timestamp', 0) / 1000).strftime('%Y-%m-%d %H:%M:%S')}\n"
+            body += f"\n**Detection {i + 1}** via {location_info} - {datetime.fromtimestamp(data.get('timestamp', 0) / 1000).strftime('%Y-%m-%d %H:%M:%S')}\n"
             body += f"- Identified: {data.get('identified', False)}\n"
             body += f"- Scroll Blocked: {data.get('scrollBlocked', False)}\n"
 
@@ -194,15 +202,27 @@ def has_detection(website_data: List[Dict[str, Any]]) -> Tuple[bool, bool]:
 
 
 def get_location_label(location: str) -> str:
-    """Get the location label from a location string."""
+    """Get the location label from a location string (e.g., Continent (Country))."""
     if not location:
-        return "Location: direct"
+        return f"Location: {DEFAULT_LOCATION_LABEL}"
 
-    # Split by / and take first part
-    continent = location.split("/")[0].strip()
-    if continent in CONTINENT_MAP:
-        return f"Location: {CONTINENT_MAP[continent]}"
-    return "Location: direct"
+    parts = [p.strip() for p in location.split("/") if p.strip()]
+
+    if not parts:
+        return f"Location: {DEFAULT_LOCATION_LABEL}"
+
+    continent = parts[0]
+    continent_shortcode = CONTINENT_MAP.get(continent)
+
+    if not continent_shortcode:
+        # If continent not recognized, treat as direct/default
+        return f"Location: {DEFAULT_LOCATION_LABEL}"
+
+    if len(parts) > 1:
+        country = parts[1]
+        return f"Location: {continent_shortcode} ({country})"
+    else:
+        return f"Location: {continent_shortcode}"
 
 
 def get_all_locations(website_data: List[Dict[str, Any]]) -> List[str]:
@@ -242,6 +262,14 @@ def manage_issues(
         detection_found, is_scroll_blocked = has_detection(data_list)
         existing_issue = existing_issues.get(url)
 
+        # Skip issues marked as wontfix
+        if existing_issue:
+            issue_labels = [label.name for label in existing_issue.labels]
+            if "wontfix" in issue_labels:
+                print(f"Skipping issue for {url} as it has 'wontfix' label.")
+                processed += 1  # Still count as processed for progress
+                continue
+
         # Only process if we have a detection or scroll blocking
         if detection_found or is_scroll_blocked:
             # Get location labels for this website
@@ -266,16 +294,20 @@ def manage_issues(
 
             # Add direct location label if needed
             if has_direct_detection:
-                location_labels.append("Location: direct")
+                location_labels.append(f"Location: {DEFAULT_LOCATION_LABEL}")
+
+            # If no locations at all (neither specific nor direct), default
+            if not location_labels:
+                location_labels.append(f"Location: {DEFAULT_LOCATION_LABEL}")
 
             if existing_issue:
                 # Get current labels excluding managed labels
                 current_labels = [
-                    label.name
-                    for label in existing_issue.labels
+                    label
+                    for label in issue_labels
                     if not (
-                        label.name.startswith("Location:")
-                        or label.name in ["scrollblocking", "cookie notice"]
+                        label.startswith("Location:")
+                        or label in ["scrollblocking", "cookie notice"]
                     )
                 ]
 
