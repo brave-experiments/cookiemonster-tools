@@ -7,5 +7,5 @@ requires-python = ">=3.11"
 dependencies = [
     "pygithub~=2.6.0",
     "requests~=2.32",
-    "tenacity~=9.0.0",
+    "tenacity~=9.1.2",
 ]
