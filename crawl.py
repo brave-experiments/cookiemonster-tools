@@ -32,6 +32,47 @@ output_file = None
 executor = None
 start_time = time.time()
 
+# Thread-local storage for custom thread IDs and sessions
+thread_local = threading.local()
+# For debugging, we want sequential thread IDs
+thread_id_counter = itertools.count(1)  # Start IDs at 1
+
+
+def get_thread_id():
+    if not hasattr(thread_local, "id"):
+        # Assign a new ID the first time this thread runs
+        thread_local.id = next(thread_id_counter)
+    return thread_local.id
+
+
+def get_session():
+    """Get or create a requests session for the current thread."""
+    if not hasattr(thread_local, "session"):
+        # Configure retry strategy - include POST in allowed methods
+        retry_strategy = Retry(
+            total=5,
+            status_forcelist=[429, 500, 502, 503, 504],
+            allowed_methods=[
+                "HEAD",
+                "GET",
+                "OPTIONS",
+                "POST",
+            ],  # In older versions use method_whitelist
+            backoff_factor=5,
+            backoff_jitter=1,
+            respect_retry_after_header=True,
+            raise_on_status=False,  # Don't raise exceptions on status codes in forcelist
+        )
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+
+        # Create a session and mount the adapter
+        session = requests.Session()
+        session.mount("https://", adapter)
+        session.mount("http://", adapter)
+        thread_local.session = session
+    return thread_local.session
+
+
 # Argument parsing
 parser = argparse.ArgumentParser(description="Make requests to Cookiemonster API")
 parser.add_argument(
@@ -69,19 +110,6 @@ BASE_URL = "https://cookiemonster.brave.com"
 
 API_KEY = os.getenv("API_KEY")
 
-# For debugging, we want sequential thread IDs
-# Thread-local storage for custom thread IDs
-thread_local = threading.local()
-# Counter for assigning sequential thread IDs
-thread_id_counter = itertools.count(1)  # Start IDs at 1
-
-
-def get_thread_id():
-    if not hasattr(thread_local, "id"):
-        # Assign a new ID the first time this thread runs
-        thread_local.id = next(thread_id_counter)
-    return thread_local.id
-
 
 def ramp_up_delay(thread_id):
     # increment thread limit by 3 every 90 seconds
@@ -114,7 +142,8 @@ signal.signal(signal.SIGTERM, cleanup)
 
 def check_auth():
     try:
-        response = requests.get(BASE_URL, headers={"API-Key": API_KEY}, timeout=10)
+        session = get_session()
+        response = session.get(BASE_URL, headers={"API-Key": API_KEY}, timeout=10)
         return response.status_code != 403
     except requests.RequestException as e:
         print(f"Auth/VPN check failed: {e}")
@@ -144,28 +173,8 @@ def post_request_with_retry(url, location):
     if API_KEY:
         headers["API-Key"] = API_KEY
 
-    # Configure retry strategy - include POST in allowed methods
-    retry_strategy = Retry(
-        total=5,
-        status_forcelist=[429, 500, 502, 503, 504],
-        allowed_methods=[
-            "HEAD",
-            "GET",
-            "OPTIONS",
-            "POST",
-        ],  # In older versions use method_whitelist
-        backoff_factor=5,
-        backoff_jitter=1,
-        respect_retry_after_header=True,
-        raise_on_status=False,  # Don't raise exceptions on status codes in forcelist
-    )
-    adapter = HTTPAdapter(max_retries=retry_strategy)
-
-    # Create a session and mount the adapter
-    session = requests.Session()
-    session.mount("https://", adapter)
-    session.mount("http://", adapter)
-
+    # Get the thread's session
+    session = get_session()
     response = session.post(endpoint, json=payload, headers=headers, timeout=120)
     return response.status_code, response.text
 
