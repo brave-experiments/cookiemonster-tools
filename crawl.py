@@ -4,10 +4,13 @@ import argparse
 import csv
 import itertools
 import json
+import math
 import os
+import random
 import signal
 import sys
 import threading
+import time
 import traceback
 from concurrent.futures import ThreadPoolExecutor
 from json.decoder import JSONDecodeError
@@ -22,9 +25,12 @@ from tenacity import (
 )
 from urllib3.util.retry import Retry
 
+MAXIMUM_CONCURRENCY = 30
+
 # Initialize global resources
 output_file = None
 executor = None
+start_time = time.time()
 
 # Argument parsing
 parser = argparse.ArgumentParser(description="Make requests to Cookiemonster API")
@@ -75,6 +81,15 @@ def get_thread_id():
         # Assign a new ID the first time this thread runs
         thread_local.id = next(thread_id_counter)
     return thread_local.id
+
+
+def ramp_up_delay(thread_id):
+    # increment thread limit by 3 every 90 seconds
+    max_active_threads = (
+        min(MAXIMUM_CONCURRENCY, math.ceil((time.time() - start_time) / 120)) * 3
+    )
+    if MAXIMUM_CONCURRENCY > thread_id > max_active_threads:
+        time.sleep(60 + random.randint(0, 10))
 
 
 # Signal handling for graceful termination
@@ -158,6 +173,7 @@ def post_request_with_retry(url, location):
 def check_url(output_file, url, location, lock=None):
     # Get the custom thread ID for debugging
     thread_id = get_thread_id()
+    ramp_up_delay(thread_id)
 
     status_code, response_body = post_request_with_retry(url, location)
     error, identified = None, False
@@ -211,7 +227,7 @@ def crawl(output_file, reader, parallel):
             check_url(output_file, url, location)
 
     if parallel:
-        executor = ThreadPoolExecutor(max_workers=10)
+        executor = ThreadPoolExecutor(max_workers=MAXIMUM_CONCURRENCY)
         with executor:
             for row in reader:
                 _, sitename = row
