@@ -169,7 +169,10 @@ def create_issue_body(website_data: List[Dict[str, Any]]) -> str:
             body += f"  - `{id}`\n"
 
     if "classifiersUsed" in latest and latest["classifiersUsed"]:
-        body += f"- Classifiers Used: {', '.join(latest['classifiersUsed'])}\n"
+        # Filter out non-string items
+        classifiers = [c for c in latest["classifiersUsed"] if isinstance(c, str)]
+        if classifiers:
+            body += f"- Classifiers Used: {', '.join(classifiers)}\n"
 
     # Add crawl results
     if len(sorted_data) > 1:
@@ -270,8 +273,8 @@ def manage_issues(
                 processed += 1  # Still count as processed for progress
                 continue
 
-        # Only process if we have a detection or scroll blocking
-        if detection_found or is_scroll_blocked:
+        # Only process if we have a detection
+        if detection_found:
             # Get location labels for this website
             locations = get_all_locations(data_list)
             location_labels = []
@@ -287,8 +290,7 @@ def manage_issues(
 
             # Check if we have any direct detections (location is empty)
             has_direct_detection = any(
-                (data.get("identified", False) or data.get("scrollBlocked", False))
-                and not data.get("location", "")
+                data.get("identified", False) and not data.get("location", "")
                 for data in data_list
             )
 
