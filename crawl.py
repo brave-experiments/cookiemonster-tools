@@ -74,7 +74,7 @@ def get_session():
 
 
 # Argument parsing
-parser = argparse.ArgumentParser(description="Make requests to Cookiemonster API")
+parser = argparse.ArgumentParser(description="Make requests to Cookiecrumbler API")
 parser.add_argument(
     "-i", "--input-file", dest="input", required=True, help="Path to the input file"
 )
@@ -106,7 +106,7 @@ parser.add_argument(
 )
 args = parser.parse_args()
 
-BASE_URL = "https://cookiemonster.brave.com"
+BASE_URL = "https://cookiecrumbler.brave.com"
 
 API_KEY = os.getenv("API_KEY")
 

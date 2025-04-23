@@ -1,4 +1,4 @@
-# Tools for interacting with Cookiemonster API
+# Tools for interacting with Cookiecrumbler API
 
 ## Run a crawl
 
