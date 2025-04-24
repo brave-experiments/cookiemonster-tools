@@ -1,7 +1,7 @@
 [project]
-name = "cookiemonster-tools"
+name = "cookiecrumbler-tools"
 version = "0.1.0"
-description = "Cookiemonster tools"
+description = "Cookiecrumbler tools"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
